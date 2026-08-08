@@ -1,0 +1,76 @@
+groups:
+  - name: banquesys.alerts
+    rules:
+
+      # ── Backend Health ──────────────────────────────────────────────────────
+      - alert: BackendDown
+        expr: up{job="banquesys-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "BanqueSys Backend is DOWN"
+          description: "The Spring Boot backend has been unreachable for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: |
+          rate(http_server_requests_seconds_count{job="banquesys-backend", status=~"5.."}[5m])
+          / rate(http_server_requests_seconds_count{job="banquesys-backend"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx error rate on BanqueSys Backend"
+          description: "More than 5% of requests are returning 5xx errors."
+
+      - alert: SlowRequests
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_server_requests_seconds_bucket{job="banquesys-backend"}[5m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow response times on BanqueSys Backend (p95 > 2s)"
+          description: "95th percentile response time exceeds 2 seconds."
+
+      # ── JVM Health ────────────────────────────────────────────────────────
+      - alert: HighJvmMemoryUsage
+        expr: |
+          jvm_memory_used_bytes{job="banquesys-backend", area="heap"}
+          / jvm_memory_max_bytes{job="banquesys-backend", area="heap"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM Heap Memory usage (> 85%)"
+          description: "The Spring Boot JVM heap memory is above 85%."
+
+      - alert: TooManyThreads
+        expr: jvm_threads_live_threads{job="banquesys-backend"} > 200
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM thread count"
+          description: "JVM live thread count exceeds 200."
+
+      # ── Host Resources ────────────────────────────────────────────────────
+      - alert: HighCpuUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on host"
+          description: "CPU usage exceeds 80% for more than 5 minutes."
+
+      - alert: LowDiskSpace
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.15
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space (< 15% free)"
+          description: "Disk space on / is critically low."

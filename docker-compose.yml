@@ -1,0 +1,205 @@
+
+services:
+
+  # ══════════════════════════════════════════════════════════
+  #  APPLICATION SERVICES
+  # ══════════════════════════════════════════════════════════
+
+  db:
+    image: postgres:16
+    container_name: banque-sys-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: banquesysdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d banquesysdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banque-sys-network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: banque-sys-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@banque-sys.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - banque-sys-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: banque-sys-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/banquesysdb
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your_openai_key_here}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - banque-sys-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: banque-sys-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_WATCH_USEPOLLING=true
+    depends_on:
+      - backend
+    networks:
+      - banque-sys-network
+
+  # ══════════════════════════════════════════════════════════
+  #  OBSERVABILITY — METRICS (Prometheus + Grafana)
+  # ══════════════════════════════════════════════════════════
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: banque-sys-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./devops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./devops/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - backend
+    networks:
+      - banque-sys-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: banque-sys-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_SERVER_DOMAIN=localhost
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./devops/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - banque-sys-network
+    restart: unless-stopped
+
+  # ── Host OS Metrics (CPU, RAM, Disk, Network) ─────────────────────────────
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: banque-sys-node-exporter
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro
+    networks:
+      - banque-sys-network
+    restart: unless-stopped
+    pid: host
+
+  # ── Per-Container Resource Metrics ────────────────────────────────────────
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: banque-sys-cadvisor
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - banque-sys-network
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+
+  # ══════════════════════════════════════════════════════════
+  #  OBSERVABILITY — LOGS (Loki + Promtail)
+  # ══════════════════════════════════════════════════════════
+
+  loki:
+    image: grafana/loki:2.9.7
+    container_name: banque-sys-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./devops/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - banque-sys-network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.7
+    container_name: banque-sys-promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./devops/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - loki
+    networks:
+      - banque-sys-network
+    restart: unless-stopped
+
+networks:
+  banque-sys-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:

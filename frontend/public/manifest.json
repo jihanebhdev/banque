@@ -1,0 +1,17 @@
+{
+  "short_name": "Banque",
+  "name": "Banque",
+  "description": "Système de gestion bancaire en ligne sécurisé Banque",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#000000",
+  "theme_color": "#30CFEF",
+  "display": "standalone",
+  "orientation": "portrait"
+}

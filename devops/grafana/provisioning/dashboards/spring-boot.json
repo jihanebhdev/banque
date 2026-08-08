@@ -1,0 +1,162 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Backend Status",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "targets": [{ "expr": "up{job=\"banquesys-backend\"}", "legendFormat": "Backend" }]
+    },
+    {
+      "title": "Uptime",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [{ "expr": "process_uptime_seconds{job=\"banquesys-backend\"}", "legendFormat": "Uptime" }]
+    },
+    {
+      "title": "CPU Usage",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.6 }, { "color": "red", "value": 0.85 }] }
+        }
+      },
+      "targets": [{ "expr": "system_cpu_usage{job=\"banquesys-backend\"}", "legendFormat": "System CPU" }]
+    },
+    {
+      "title": "JVM Heap Used",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 268435456 }, { "color": "red", "value": 536870912 }] }
+        }
+      },
+      "targets": [{ "expr": "jvm_memory_used_bytes{job=\"banquesys-backend\",area=\"heap\"}", "legendFormat": "{{id}}" }]
+    },
+    {
+      "title": "Live Threads",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 200 }] }
+        }
+      },
+      "targets": [{ "expr": "jvm_threads_live_threads{job=\"banquesys-backend\"}", "legendFormat": "Threads" }]
+    },
+    {
+      "title": "Active DB Connections",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "hikaricp_connections_active{job=\"banquesys-backend\"}", "legendFormat": "Active" }]
+    },
+    {
+      "title": "HTTP Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_seconds_count{job=\"banquesys-backend\"}[1m]))", "legendFormat": "Total" },
+        { "expr": "sum(rate(http_server_requests_seconds_count{job=\"banquesys-backend\",status=~\"2..\"}[1m]))", "legendFormat": "2xx Success" },
+        { "expr": "sum(rate(http_server_requests_seconds_count{job=\"banquesys-backend\",status=~\"4..\"}[1m]))", "legendFormat": "4xx Client Error" },
+        { "expr": "sum(rate(http_server_requests_seconds_count{job=\"banquesys-backend\",status=~\"5..\"}[1m]))", "legendFormat": "5xx Server Error" }
+      ]
+    },
+    {
+      "title": "Response Time Percentiles",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{job=\"banquesys-backend\"}[5m])) by (le))", "legendFormat": "p50 (Median)" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job=\"banquesys-backend\"}[5m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"banquesys-backend\"}[5m])) by (le))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "title": "JVM Heap Memory Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{job=\"banquesys-backend\",area=\"heap\"}", "legendFormat": "Used {{id}}" },
+        { "expr": "jvm_memory_committed_bytes{job=\"banquesys-backend\",area=\"heap\"}", "legendFormat": "Committed {{id}}" },
+        { "expr": "jvm_memory_max_bytes{job=\"banquesys-backend\",area=\"heap\"}", "legendFormat": "Max {{id}}" }
+      ]
+    },
+    {
+      "title": "GC Pause Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "rate(jvm_gc_pause_seconds_sum{job=\"banquesys-backend\"}[1m])", "legendFormat": "GC {{action}} ({{cause}})" }
+      ]
+    },
+    {
+      "title": "HikariCP Connection Pool",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "hikaricp_connections_active{job=\"banquesys-backend\"}", "legendFormat": "Active" },
+        { "expr": "hikaricp_connections_idle{job=\"banquesys-backend\"}", "legendFormat": "Idle" },
+        { "expr": "hikaricp_connections_pending{job=\"banquesys-backend\"}", "legendFormat": "Pending" },
+        { "expr": "hikaricp_connections{job=\"banquesys-backend\"}", "legendFormat": "Total" }
+      ]
+    },
+    {
+      "title": "HTTP Requests by Endpoint (Top 10)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "topk(10, sum by (uri, method, status) (rate(http_server_requests_seconds_count{job=\"banquesys-backend\"}[5m])))", "legendFormat": "{{method}} {{uri}} [{{status}}]", "format": "table", "instant": true }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true } } }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["spring-boot", "banquesys", "jvm", "prometheus"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BanqueSys — Spring Boot Monitoring",
+  "uid": "banquesys-spring-boot",
+  "version": 1
+}
